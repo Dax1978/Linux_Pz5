@@ -1,0 +1,44 @@
+FROM python:3.12-alpine3.19
+
+# Создаю переменную для проброса имени проекта в контейнер
+ARG PROJECT_NAME=pz_5_7
+# Переменные для создания группы и пользователя,
+# иначе файлы созданные под root будут недоступны
+ARG GROUP_ID=5000
+ARG USER_ID=5000
+
+# Переменная среды для работы с виртуальным окружением и др. (указаны далее)
+ENV VIRTUAL_ENV=/srv/${PROJECT_NAME}/.venv \
+    PATH="$VIRTUAL_ENV/bin:$PATH" \
+    \
+    # Переменная среды для обеспечения правильности работы импорта
+    PYTHON_PATH=/srv/${PROJECT_NAME} \
+    # Исключаю содание бинарных фалов Python
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Исключаю буферизацию загружаемых зависимостей
+    PYTHONUNBUFFERED=1
+
+# Команды создания группы, пользователя,
+# каталога пользователя и назначения прав созданному пользователю на созданную папку
+RUN groupadd --gid ${GROUP_ID} ${PROJECT_NAME} && \
+    useradd --home-dir /home/${PROJECT_NAME} --create-home --uid ${USER_ID} \
+        --gid ${GROUP_ID} --shell /bin/sh --skel /dev/null ${PROJECT_NAME} && \
+    mkdir /srv/${PROJECT_NAME} && \
+    chown -R ${PROJECT_NAME}:${PROJECT_NAME} /srv/${PROJECT_NAME}
+
+# Назначаю рабочую директорию
+WORKDIR /srv/${PROJECT_NAME}
+
+# Копирую файл с перечнем зависимостей в рабочую директорию
+COPY requirements.txt /srv/${PROJECT_NAME}/
+
+# Запускаю обновление перечня зависимостей, 
+# создание виртуального окружения,
+# установку зависимостей
+RUN \
+    apt-get update && apt install -y git && \
+    python3 -m venv --system-site-packages ${VIRTUAL_ENV} && \
+    python3 -m pip install --no-cache -r requirements.txt
+
+# Устанавливаем пользователя
+USER ${REMOTE_USER}
